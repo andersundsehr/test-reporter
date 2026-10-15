@@ -1,26 +1,42 @@
 # Test Reporter
 
-Test Reporter turns JUnit XML from Playwright, Vitest, PHPUnit, or another test framework into ticket-scoped results and submits them to a central service that owns the Jira credentials.
+Test Reporter converts JUnit XML into ticket-based test results and publishes them to Jira through a central service.
 
-## Easiest setup: GitLab CI
+```text
+GitLab pipeline → Test Reporter service → Jira
+```
 
-Add one include to the project's `.gitlab-ci.yml`:
+Jira credentials exist only on the central service. Project pipelines receive an endpoint and an ingest token, and reports are not stored by the service.
+
+## Add it to a GitLab project
+
+Include a released version of the CI template in `.gitlab-ci.yml`:
 
 ```yaml
 include:
   - remote: https://raw.githubusercontent.com/andersundsehr/test-reporter/v1.0.0/templates/gitlab-ci.yml
+
+test_reporter:
+  variables:
+    TEST_REPORTER_IMAGE: ghcr.io/andersundsehr/test-reporter:v1.0.0
 ```
 
-The template adds a `test_reporter` job to GitLab's built-in `.post` stage. The job downloads no dependencies, automatically finds a supported JUnit file, creates the report, and submits it. If no JUnit file exists, it exits successfully.
+Replace `v1.0.0` with the release you want to use. Pinning the template and container image to the same version makes pipeline updates predictable.
 
-Configure these variables once at GitLab group level so individual projects only need the include:
+Configure these masked GitLab group variables once for all participating projects:
 
 ```text
 TEST_REPORTER_ENDPOINT=https://test-reporter.example.com/reports
 TEST_REPORTER_TOKEN=<ingest token>
 ```
 
-The preceding test job must preserve its JUnit XML as an artifact, even when tests fail. For example:
+Mark them as protected only when the reporting job runs exclusively on protected branches or tags.
+
+The included template adds a `test_reporter` job to GitLab's `.post` stage. It runs `test-reporter run`, detects the JUnit file, builds the report, and submits it to the central service. If no JUnit file exists, the job exits successfully.
+
+## Provide JUnit results
+
+The test job must preserve its JUnit XML as an artifact, including when tests fail:
 
 ```yaml
 playwright:
@@ -35,7 +51,7 @@ playwright:
       junit: .playwright/junit.xml
 ```
 
-The reporter automatically checks these paths:
+Test Reporter automatically checks:
 
 - `.playwright/junit.xml`
 - `.test-reporter/vitest-junit.xml`
@@ -43,15 +59,16 @@ The reporter automatically checks these paths:
 - `.test-reporter/junit.xml`
 - `junit.xml`
 
-For reproducible builds, use the same release tag in the template URL and container image:
+Supported frameworks are `playwright`, `vitest`, `phpunit`, and `generic`. An explicit path and framework can be configured when required:
 
 ```yaml
 test_reporter:
   variables:
-    TEST_REPORTER_IMAGE: ghcr.io/andersundsehr/test-reporter:v1.0.0
+    TEST_REPORTER_FRAMEWORK: phpunit
+    TEST_REPORTER_INPUT: build/junit.xml
 ```
 
-If artifact downloads should be restricted to specific jobs, override `needs`:
+To download artifacts only from specific jobs, configure `needs`:
 
 ```yaml
 test_reporter:
@@ -60,40 +77,7 @@ test_reporter:
       artifacts: true
 ```
 
-## One-command usage
-
-The complete local or CI workflow is:
-
-```bash
-test-reporter run
-```
-
-`run` detects JUnit XML, builds validated JSON, and submits it to `TEST_REPORTER_ENDPOINT`. It fails with a clear error if the central endpoint is missing.
-
-Paths and framework can still be explicit:
-
-```bash
-test-reporter run --framework phpunit --input build/junit.xml
-```
-
-Supported frameworks are `playwright`, `vitest`, `phpunit`, and `generic`. Use `generic` for standard JUnit XML from another framework.
-
-## Standalone installation
-
-The container-based GitLab setup above is recommended. For local use or CI systems without containers, install the standalone release bundle:
-
-```bash
-curl --fail --silent --show-error --location \
-  https://github.com/andersundsehr/test-reporter/releases/latest/download/install.sh \
-  --output /tmp/install-test-reporter.sh
-
-source /tmp/install-test-reporter.sh
-test-reporter run
-```
-
-This requires Node.js 22 or newer, Bash, and curl. Set `TEST_REPORTER_BASE_URL` before sourcing the installer to pin a release or use another distribution location.
-
-## Link tests to Jira
+## Link tests to Jira issues
 
 Playwright:
 
@@ -125,29 +109,55 @@ PHPUnit and other JUnit producers can add ticket metadata to a test case:
 </properties>
 ```
 
-## Central server
+## Run the central service
 
-The recommended architecture keeps Jira credentials in one central service. Client projects only receive the reporter endpoint and an ingest token.
-
-Server configuration:
+Create a `.env` file from `.env.dist` and enter the real credentials:
 
 ```text
 JIRA_BASE_URL=https://example.atlassian.net
 JIRA_EMAIL=jira-service@example.com
 JIRA_API_TOKEN=<Jira API token>
 JIRA_DRY_RUN=false
-TEST_REPORTER_INGEST_TOKEN=<ingest token>
-TEST_REPORTER_HOST=0.0.0.0
-TEST_REPORTER_PORT=3099
+TEST_REPORTER_INGEST_TOKEN=<long random token>
 ```
 
-Run the released container as a service, or run it locally:
+Start the service:
 
 ```bash
-yarn serve --host 0.0.0.0 --port 3099
+docker compose up -d
 ```
 
-The server exposes `GET /health` and authenticated `POST /reports` endpoints. It validates incoming reports, publishes relevant status changes to Jira, and then discards the report without storing it.
+The service exposes:
+
+- `GET /health` for health checks
+- `POST /reports` for authenticated report submission
+
+It validates each report, updates Jira, and discards the report without writing it to disk. The provided Compose configuration exposes the service on `127.0.0.1:3099`, ready for a reverse proxy on the host.
+
+## Optional standalone CLI
+
+For local use or CI systems without container support:
+
+```bash
+curl --fail --silent --show-error --location \
+  https://github.com/andersundsehr/test-reporter/releases/latest/download/install.sh \
+  --output /tmp/install-test-reporter.sh
+
+source /tmp/install-test-reporter.sh
+test-reporter run
+```
+
+This requires Node.js 22 or newer, Bash, curl, `TEST_REPORTER_ENDPOINT`, and `TEST_REPORTER_TOKEN`.
+
+## Reporting behavior
+
+For each Jira issue, the aggregate result is:
+
+- green when all linked tests pass
+- red when at least one linked test fails
+- grey when tests are skipped or have an unknown status and none fail
+
+A Jira comment is added only when the aggregate result changes for the same project, branch, and test runner.
 
 ## Development
 
@@ -160,7 +170,3 @@ yarn build
 ```
 
 The standalone bundle is written to `dist/test-reporter.cjs`.
-
-## Reporting behavior
-
-The ticket result is green when all linked tests pass, red when at least one fails, and grey when tests are skipped or unknown without failures. A Jira comment is added only when that aggregate result changes for the same project, branch, and test runner.

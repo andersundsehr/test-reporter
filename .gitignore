@@ -2,8 +2,8 @@ node_modules/
 dist/
 .yarn/
 .idea/
+.ssh.known_hosts
 .test-reporter/
 *.tsbuildinfo
 .env
-.env.*
-!.env.example
+!.env.dist
