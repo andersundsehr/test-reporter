@@ -1,0 +1,20 @@
+# Include this file to add an automatic reporting job after all regular stages.
+.test-reporter:
+  image:
+    name: $TEST_REPORTER_IMAGE
+    entrypoint: ['']
+  resource_group: test-reporter
+  when: always
+  variables:
+    TEST_REPORTER_IMAGE: ghcr.io/andersundsehr/test-reporter:latest
+  script:
+    - test-reporter run --skip-if-missing
+  artifacts:
+    when: always
+    paths:
+      - .test-reporter/
+    expire_in: 1 week
+
+test_reporter:
+  extends: .test-reporter
+  stage: .post

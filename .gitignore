@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.yarn/
+.idea/
+.test-reporter/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

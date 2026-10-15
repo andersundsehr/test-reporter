@@ -1,0 +1,6 @@
+.git
+.github
+.test-reporter
+dist
+node_modules
+tests

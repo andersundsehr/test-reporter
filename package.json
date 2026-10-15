@@ -1,0 +1,32 @@
+{
+  "name": "test-reporter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Submit ticket-scoped JUnit test reports to a central Jira publishing service.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andersundsehr/test-reporter.git"
+  },
+  "type": "module",
+  "packageManager": "yarn@4.17.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "serve": "vite-node src/cli.ts serve",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "saxes": "^6.0.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1",
+    "vite-node": "^3.2.4",
+    "vitest": "^4.1.10"
+  }
+}
