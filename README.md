@@ -119,6 +119,7 @@ JIRA_EMAIL=jira-service@example.com
 JIRA_API_TOKEN=<Jira API token>
 JIRA_DRY_RUN=false
 TEST_REPORTER_INGEST_TOKEN=<long random token>
+TEST_REPORTER_VIRTUAL_HOST=
 ```
 
 Start the service:
@@ -132,7 +133,7 @@ The service exposes:
 - `GET /health` for health checks
 - `POST /reports` for authenticated report submission
 
-It validates each report, updates Jira, and discards the report without writing it to disk. The provided Compose configuration exposes the service on `127.0.0.1:3099`, ready for a reverse proxy on the host.
+It validates each report, updates Jira, and discards the report without writing it to disk.
 
 ## Optional standalone CLI
 

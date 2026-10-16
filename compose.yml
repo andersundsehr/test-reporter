@@ -5,8 +5,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    ports:
-      - '127.0.0.1:3099:3099'
+    environment:
+      VIRTUAL_HOST: ${TEST_REPORTER_VIRTUAL_HOST:?TEST_REPORTER_VIRTUAL_HOST is required}
+      VIRTUAL_PORT: '3099'
+    expose:
+      - '3099'
     healthcheck:
       test:
         - CMD
@@ -17,3 +20,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+networks:
+  default:
+    name: proxy-tier
+    external: true
