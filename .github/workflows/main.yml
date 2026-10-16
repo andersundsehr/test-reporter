@@ -66,30 +66,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes
-      - name: Configure deployment SSH
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        env:
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/test-reporter-deploy"
-          chmod 600 "$HOME/.ssh/test-reporter-deploy"
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/known_hosts"
-      - name: Deploy main image
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        env:
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
-          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
-        run: |
-          : "${DEPLOY_HOST:?Missing DEPLOY_HOST repository variable}"
-          : "${DEPLOY_PORT:?Missing DEPLOY_PORT repository variable}"
-          : "${DEPLOY_USER:?Missing DEPLOY_USER repository variable}"
-          ssh -i "$HOME/.ssh/test-reporter-deploy" -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            'mkdir -p "$HOME/docker/test-reporter"'
-          scp -i "$HOME/.ssh/test-reporter-deploy" -P "$DEPLOY_PORT" compose.yml .env.dist \
-            "$DEPLOY_USER@$DEPLOY_HOST:docker/test-reporter/"
-          ssh -i "$HOME/.ssh/test-reporter-deploy" -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            'set -eu; cd "$HOME/docker/test-reporter"; test -f .env || { echo "Missing $HOME/docker/test-reporter/.env" >&2; exit 1; }; docker compose pull; docker compose up -d --remove-orphans'
