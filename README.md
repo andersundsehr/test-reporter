@@ -32,6 +32,46 @@ TEST_REPORTER_TOKEN=<ingest token>
 
 Mark them as protected only when the reporting job runs exclusively on protected branches or tags.
 
+### Authenticate GitLab to the private container image
+
+GitLab Runner must authenticate to GHCR before it can pull the private Test Reporter image. Configure an additional masked GitLab CI/CD variable at the group or project level:
+
+```text
+Key: DOCKER_AUTH_CONFIG
+Description: Test Reporter GHCR authentication
+```
+
+1. Create a GitHub personal access token (classic) with the `read:packages` scope. The GitHub user that creates the token must have access to the private package. If the organization uses SSO, authorize the token for the organization.
+
+2. Generate the encoded authentication value locally without placing the token in shell history:
+
+```bash
+read -rp "Personal GitHub username: " GHCR_USERNAME
+read -rsp "GitHub token: " GHCR_READ_TOKEN
+echo
+printf '%s' "${GHCR_USERNAME}:${GHCR_READ_TOKEN}" | base64 -w0
+echo
+unset GHCR_USERNAME GHCR_READ_TOKEN
+```
+
+Enter the personal GitHub username and paste the token when prompted. Use the username of the person who created the token, not the `andersundsehr` organization name. The command prints a long Base64 string.
+
+3. Copy only that Base64 output and paste it in place of `PASTE_OUTPUT_HERE` in this JSON:
+
+```json
+{"auths":{"ghcr.io":{"auth":"PASTE_OUTPUT_HERE"}}}
+```
+
+For example, if the command prints `dXNlcjpwYXQ...`, the complete value is:
+
+```json
+{"auths":{"ghcr.io":{"auth":"dXNlcjpwYXQ..."}}}
+```
+
+4. Save the complete JSON document above—not just the Base64 string—as the value of the GitLab variable named `DOCKER_AUTH_CONFIG`.
+
+Mark `DOCKER_AUTH_CONFIG` as protected only when the reporting job runs exclusively on protected branches or tags. Never commit the token, Base64 output, or completed JSON document to the repository.
+
 The included template adds a `test_reporter` job to GitLab's `.post` stage. It runs `test-reporter run`, detects the JUnit file, builds the report, and submits it to the central service. If no JUnit file exists, the job exits successfully.
 
 ## Provide JUnit results
